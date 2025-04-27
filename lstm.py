@@ -8,7 +8,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 from keras.src.models import Sequential
-from keras.src.layers import LSTM, Dense
+from keras.src.layers import LSTM, Dense, Dropout
+from keras.src.optimizers import RMSprop
+from keras.src.callbacks import EarlyStopping
 
 SEQUENCE_LENGTH = 24  # 24 hours
 
@@ -43,12 +45,16 @@ def get_vectors(df: pd.DataFrame):
 
 def plot_lstm_results(y_true, y_pred):
     plt.figure(figsize=(10, 5))
+    
     plt.plot(y_true, label="Actual")
     plt.plot(y_pred, label="Predicted")
     plt.title("Wind Speed Prediction with LSTM")
+    
     plt.xlabel("Time Steps")
     plt.ylabel("Scaled Wind Speed")
+
     plt.legend()
+
     plt.tight_layout()
     plt.show()
 
@@ -63,10 +69,12 @@ def predict_wind_speed_lstm(features: pd.DataFrame, targets: pd.DataFrame):
     scaler = StandardScaler()
     scaled = scaler.fit_transform(df[["temperature_2m", "temperature_80m", "temperature_120m", "temperature_180m", "soil_temperature_0cm", "soil_temperature_6cm", "soil_temperature_18cm", "soil_temperature_54cm", "pressure", "wind_speed_10m", "wind_speed_80m", "wind_speed_120m", "wind_speed_180m"]])
 
+    # Creating a snapshot of each hour to be predicted based on the previous 24 hours of data
+    # for the time-series model
     X, y = [], []
     for i in range(SEQUENCE_LENGTH, len(scaled)):
-        X.append(scaled[i - SEQUENCE_LENGTH:i, :-1])
-        y.append(scaled[i, -1])
+        X.append(scaled[i - SEQUENCE_LENGTH:i, :-1]) # Snapshot of the input data over the last 24 hours for a given period
+        y.append(scaled[i, -1]) # Compliling what the wind is looking like at this moment (speed and direction)
 
     X = np.array(X)
     y = np.array(y)
@@ -75,15 +83,35 @@ def predict_wind_speed_lstm(features: pd.DataFrame, targets: pd.DataFrame):
 
     # Define LSTM model
     model = Sequential([
-        LSTM(64, input_shape=(X.shape[1], X.shape[2])),
+        LSTM(128, return_sequences=True, input_shape=(X.shape[1], X.shape[2])),
+        Dropout(0.3),
+        LSTM(64),
+        Dropout(0.3),
         Dense(1)
     ])
 
-    model.compile(optimizer='adam', loss='mse')
+    # Define the optimizer for the LSTM
+    optimizer = RMSprop(learning_rate=0.003)
+
+    # Define a callback to discontinue model training if no further improvements are found
+    early_stop = EarlyStopping(
+        monitor="val_loss",
+        patience=20,
+        restore_best_weights=True
+    )
+
+    model.compile(optimizer=optimizer, loss='mse')
     model.summary()
 
     # Train
-    history = model.fit(X_train, y_train, epochs=200, batch_size=32, validation_data=(X_test, y_test), verbose=1)
+    history = model.fit(
+        X_train, y_train,
+        epochs=200,
+        batch_size=16,
+        validation_data=(X_test, y_test),
+        verbose=1,
+        callbacks=[early_stop]
+    )
 
     # Predict
     y_pred = model.predict(X_test).flatten()
