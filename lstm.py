@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+
+from pathlib import Path
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -13,6 +14,7 @@ from keras.src.optimizers import RMSprop
 from keras.src.callbacks import EarlyStopping
 
 SEQUENCE_LENGTH = 24  # 24 hours
+SAVED_MODEL_PATH = "saved/model.keras"
 
 def read_input_data(input_set: str):
     df = pd.read_json(input_set)
@@ -34,11 +36,7 @@ def get_vectors(df: pd.DataFrame):
 
     targets = pd.DataFrame({
         "date": pd.to_datetime(df["date"]),
-        "wind_speed_10m": df["wind_speed_10m"],
-        "wind_speed_80m": df["wind_speed_80m"],
-        "wind_speed_120m": df["wind_speed_120m"],
-        "wind_speed_180m": df["wind_speed_180m"],
-        "wind_direction_10m": df["wind_direction_10m"]
+        "wind_speed_10m": df["wind_speed_10m"]
     })
 
     return features, targets
@@ -58,16 +56,37 @@ def plot_lstm_results(y_true, y_pred):
     plt.tight_layout()
     plt.show()
 
+def build_model(X, y) -> Sequential:
+    # Define LSTM model
+    model = Sequential([
+        LSTM(128, return_sequences=True, input_shape=(X.shape[1], X.shape[2])),
+        Dropout(0.3),
+        LSTM(64),
+        Dropout(0.3),
+        Dense(1)
+    ])
+
+    # Define the optimizer for the LSTM
+    optimizer = RMSprop(learning_rate=0.003)
+
+    model.compile(optimizer=optimizer, loss='mse')
+    model.summary()
+
+    return model
+
 def predict_wind_speed_lstm(features: pd.DataFrame, targets: pd.DataFrame):
     df = features.copy()
     df["wind_speed_10m"] = targets["wind_speed_10m"].values
-    df["wind_speed_80m"] = targets["wind_speed_80m"].values
-    df["wind_speed_120m"] = targets["wind_speed_120m"].values
-    df["wind_speed_180m"] = targets["wind_speed_180m"].values
     df.dropna(inplace=True)
 
+    FEATURE_COLUMNS = [
+        "temperature_2m", "temperature_80m", "temperature_120m", "temperature_180m",
+        "soil_temperature_0cm", "soil_temperature_6cm", "soil_temperature_18cm", "soil_temperature_54cm",
+        "pressure"
+    ]
+
     scaler = StandardScaler()
-    scaled = scaler.fit_transform(df[["temperature_2m", "temperature_80m", "temperature_120m", "temperature_180m", "soil_temperature_0cm", "soil_temperature_6cm", "soil_temperature_18cm", "soil_temperature_54cm", "pressure", "wind_speed_10m", "wind_speed_80m", "wind_speed_120m", "wind_speed_180m"]])
+    scaled = scaler.fit_transform(df[FEATURE_COLUMNS + ["wind_speed_10m"]])
 
     # Creating a snapshot of each hour to be predicted based on the previous 24 hours of data
     # for the time-series model
@@ -81,18 +100,6 @@ def predict_wind_speed_lstm(features: pd.DataFrame, targets: pd.DataFrame):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
-    # Define LSTM model
-    model = Sequential([
-        LSTM(128, return_sequences=True, input_shape=(X.shape[1], X.shape[2])),
-        Dropout(0.3),
-        LSTM(64),
-        Dropout(0.3),
-        Dense(1)
-    ])
-
-    # Define the optimizer for the LSTM
-    optimizer = RMSprop(learning_rate=0.003)
-
     # Define a callback to discontinue model training if no further improvements are found
     early_stop = EarlyStopping(
         monitor="val_loss",
@@ -100,11 +107,10 @@ def predict_wind_speed_lstm(features: pd.DataFrame, targets: pd.DataFrame):
         restore_best_weights=True
     )
 
-    model.compile(optimizer=optimizer, loss='mse')
-    model.summary()
+    model = build_model(X, y)
 
     # Train
-    history = model.fit(
+    model.fit(
         X_train, y_train,
         epochs=200,
         batch_size=16,
@@ -112,6 +118,8 @@ def predict_wind_speed_lstm(features: pd.DataFrame, targets: pd.DataFrame):
         verbose=1,
         callbacks=[early_stop]
     )
+
+    model.save(Path(SAVED_MODEL_PATH))
 
     # Predict
     y_pred = model.predict(X_test).flatten()
