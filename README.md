@@ -35,7 +35,7 @@ conda activate cyclonic-env
 
 ## Training the AI model
 
-Step 1: To train the model, you need to first fetch the data using the (Cyclonic Data module)[https://github.com/supraaxdd/cyclonic-data]. Refer to the documentation on its Github page for steps on how to fetch the data.
+Step 1: To train the model, you need to first fetch the data using the [Cyclonic Data module](https://github.com/supraaxdd/cyclonic-data). Refer to the documentation on its Github page for steps on how to fetch the data.
 
 Step 2: Once the data has been retrieved, you need to create a folder called `input` in the cyclonic-ai project directory.
 
@@ -52,9 +52,9 @@ This will start training the model.
 
 ## Running a prediction on a trained model.
 
-Once a model is trained, as outlined in the (Training the AI model)[##training-the-ai-model], you can run it using the `run_saved_model.py` script. To predict the future wind speeds, you need to fetch future data using the (Cyclonic Data module)[https://github.com/supraaxdd/cyclonic-data]. Refer to the documentation on its Github page for steps on how to fetch the data.
+Once a model is trained, as outlined in the [Training the AI model](##training-the-ai-model), you can run it using the `run_saved_model.py` script. To predict the future wind speeds, you need to fetch future data using the [Cyclonic Data module](https://github.com/supraaxdd/cyclonic-data). Refer to the documentation on its Github page for steps on how to fetch the data.
 
-Do steps 1 - 3 in the (Training the AI model)[##training-the-ai-model] section to get the future data. 
+Do steps 1 - 3 in the [Training the AI model](##training-the-ai-model) section to get the future data. 
 
 After completing those steps, run the script by doing:
 
