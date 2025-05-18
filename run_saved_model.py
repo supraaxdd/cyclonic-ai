@@ -55,7 +55,7 @@ def plot_prediction(dates, prediction):
     plt.show()
 
 if __name__ == "__main__":
-    df = read_input_data("./input/result-forecast.json")
+    df = read_input_data("./input/result.json")
     features, dates = get_features(df)
 
     # Load scalers
